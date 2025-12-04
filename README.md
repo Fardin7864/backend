@@ -97,6 +97,131 @@ The frontend uses this to call the NestJS API.
 
 ---
 
+## 🐳 Docker Setup
+
+### Quick Start with Docker Compose
+
+<details>
+<summary>Using Docker Compose (recommended)</summary>
+
+Create a `docker-compose.yml` file in the root directory:
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: flash_sale_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: flash_sale
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: flash_sale_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+Then run:
+
+```bash
+# Start services
+docker-compose up -d
+
+# Stop services
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Remove volumes (clears data)
+docker-compose down -v
+```
+
+</details>
+
+### Manual Docker Commands
+
+#### PostgreSQL
+
+```bash
+# Run PostgreSQL container
+docker run -d \
+  --name flash_sale_postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=flash_sale \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:15-alpine
+
+# Connect to PostgreSQL
+docker exec -it flash_sale_postgres psql -U postgres -d flash_sale
+
+# Stop & remove
+docker stop flash_sale_postgres
+docker rm flash_sale_postgres
+```
+
+#### Redis
+
+```bash
+# Run Redis container
+docker run -d \
+  --name flash_sale_redis \
+  -p 6379:6379 \
+  -v redis_data:/data \
+  redis:7-alpine
+
+# Connect to Redis CLI
+docker exec -it flash_sale_redis redis-cli
+
+# Stop & remove
+docker stop flash_sale_redis
+docker rm flash_sale_redis
+```
+
+### Using Existing Containers
+
+If you already have PostgreSQL/Redis running:
+
+```bash
+# Check if containers are running
+docker ps
+
+# View container logs
+docker logs flash_sale_postgres
+docker logs flash_sale_redis
+
+# Check container health
+docker ps --filter "name=flash_sale"
+```
+
+---
+
 ## 🚀 Getting Started
 
 ### Backend
