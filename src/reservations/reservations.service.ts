@@ -262,11 +262,14 @@ export class ReservationsService {
    * Background job will call this.
    */
   async expireReservation(id: string): Promise<Reservation | null> {
-    const { reservation, product } = await this.dataSource.transaction(
-      async (manager) => {
+    const { userId, expiredReservations, updatedProducts } =
+      await this.dataSource.transaction(async (manager) => {
         const reservationRepo = manager.getRepository(Reservation);
         const productRepo = manager.getRepository(Product);
 
+        const now = new Date();
+
+        // 1) Load the reservation for this job, with lock
         const existing = await reservationRepo
           .createQueryBuilder('r')
           .setLock('pessimistic_write')
@@ -274,46 +277,107 @@ export class ReservationsService {
           .getOne();
 
         if (!existing) {
-          return { reservation: null, product: null };
+          // Nothing to do
+          return {
+            userId: null,
+            expiredReservations: [] as Reservation[],
+            updatedProducts: [] as Product[],
+          };
         }
 
+        // If already COMPLETED or EXPIRED, do nothing
         if (existing.status !== ReservationStatus.ACTIVE) {
-          return { reservation: existing, product: null };
+          return {
+            userId: existing.userId,
+            expiredReservations: [] as Reservation[],
+            updatedProducts: [] as Product[],
+          };
         }
 
-        // Only expire if expiresAt is actually in the past
-        if (existing.expiresAt > new Date()) {
-          return { reservation: existing, product: null };
+        // If its expiresAt is still in the future, it means another job
+        // extended the window (user reserved something else). Do nothing.
+        if (existing.expiresAt > now) {
+          return {
+            userId: existing.userId,
+            expiredReservations: [] as Reservation[],
+            updatedProducts: [] as Product[],
+          };
         }
 
-        const product = await productRepo.findOneBy({
-          id: existing.productId,
-        });
-        if (product) {
-          product.availableStock += existing.quantity;
-          await productRepo.save(product);
+        const userId = existing.userId;
+
+        // 2) Find ALL ACTIVE reservations for this user that should now expire
+        const toExpire = await reservationRepo
+          .createQueryBuilder('r')
+          .setLock('pessimistic_write')
+          .where('r.userId = :userId', { userId })
+          .andWhere('r.status = :status', {
+            status: ReservationStatus.ACTIVE,
+          })
+          .andWhere('r.expiresAt <= :now', { now })
+          .getMany();
+
+        if (toExpire.length === 0) {
+          return {
+            userId,
+            expiredReservations: [] as Reservation[],
+            updatedProducts: [] as Product[],
+          };
         }
 
-        existing.status = ReservationStatus.EXPIRED;
-        existing.expiresAt = new Date();
+        // 3) Load all affected products in one go
+        const productIds = Array.from(
+          new Set(toExpire.map((r) => r.productId)),
+        );
 
-        const saved = await reservationRepo.save(existing);
+        const products = await productRepo
+          .createQueryBuilder('p')
+          .setLock('pessimistic_write')
+          .where('p.id IN (:...ids)', { ids: productIds })
+          .getMany();
 
-        return { reservation: saved, product };
-      },
-    );
+        const productMap = new Map<string, Product>(
+          products.map((p) => [p.id, p]),
+        );
 
-    if (reservation) {
-      this.gateway.emitUserReservationsUpdated(reservation.userId);
-    }
-    if (product) {
-      this.gateway.emitProductsUpdated({
-        id: product.id,
-        availableStock: product.availableStock,
+        // 4) Restore stock for each reservation and mark them expired
+        for (const r of toExpire) {
+          const prod = productMap.get(r.productId);
+          if (prod) {
+            prod.availableStock += r.quantity;
+          }
+          r.status = ReservationStatus.EXPIRED;
+          r.expiresAt = now;
+        }
+
+        const savedProducts = await productRepo.save(
+          Array.from(productMap.values()),
+        );
+        const savedReservations = await reservationRepo.save(toExpire);
+
+        return {
+          userId,
+          expiredReservations: savedReservations,
+          updatedProducts: savedProducts,
+        };
       });
+
+    // 5) Emit websocket updates outside the transaction
+    if (userId && expiredReservations.length > 0) {
+      this.gateway.emitUserReservationsUpdated(userId);
     }
 
-    return reservation;
+    if (updatedProducts.length > 0) {
+      this.gateway.emitProductsUpdated(
+        updatedProducts.map((p) => ({
+          id: p.id,
+          availableStock: p.availableStock,
+        })),
+      );
+    }
+
+    // For compatibility, return the first expired reservation (or null)
+    return expiredReservations[0] ?? null;
   }
 
   async getReservation(id: string): Promise<Reservation> {
