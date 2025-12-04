@@ -1,3 +1,4 @@
+// backend/src/app.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -16,28 +17,76 @@ import { ReservationsGateway } from './realtime/reservations.gateway';
       isGlobal: true,
     }),
 
+    // 🔹 Postgres config (use DB_USERNAME / DB_PASSWORD)
+    // TypeOrmModule.forRootAsync({
+    //   inject: [ConfigService],
+    //   useFactory: (config: ConfigService) => ({
+    //     type: 'postgres',
+    //     host: config.get<string>('DB_HOST'),
+    //     port: config.get<number>('DB_PORT'),
+    //     username: config.get<string>('DB_USERNAME'),
+    //     password: config.get<string>('DB_PASSWORD'),
+    //     database: config.get<string>('DB_NAME'),
+    //     entities: [Product, Reservation],
+    //     synchronize: true, // OK for assignment/demo only
+    //   }),
+    // }),
+
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get<string>('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get<string>('DB_USER'),
-        password: config.get<string>('DB_PASS'),
-        database: config.get<string>('DB_NAME'),
-        entities: [Product, Reservation],
-        synchronize: true, // OK for take-home / dev. For prod: use migrations.
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('DB_URL');
+
+        if (!url) {
+          return {
+            type: 'postgres',
+            host: config.get<string>('DB_HOST'),
+            port: config.get<number>('DB_PORT'),
+            username: config.get<string>('DB_USERNAME'),
+            password: config.get<string>('DB_PASSWORD'),
+            database: config.get<string>('DB_NAME'),
+            entities: [Product, Reservation],
+            synchronize: true,
+            ssl: {
+              rejectUnauthorized: false,
+            },
+          };
+        }
+
+        // preferred path: single URL
+        return {
+          type: 'postgres',
+          url,
+          entities: [Product, Reservation],
+          synchronize: true,
+          ssl: {
+            rejectUnauthorized: false, // important for Render
+          },
+        };
+      },
     }),
 
+    // 🔹 Bull / Redis from REDIS_URL (Upstash)
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        redis: {
-          host: config.get<string>('REDIS_HOST'),
-          port: config.get<number>('REDIS_PORT'),
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('REDIS_URL');
+        if (!url) {
+          throw new Error('REDIS_URL env var is required');
+        }
+
+        const redisUrl = new URL(url);
+
+        return {
+          redis: {
+            host: redisUrl.hostname,
+            port: Number(redisUrl.port || 6379),
+            password: redisUrl.password || undefined,
+            // Upstash uses TLS with rediss://
+            tls: redisUrl.protocol === 'rediss:' ? {} : undefined,
+          },
+        };
+      },
     }),
 
     ScheduleModule.forRoot(),
