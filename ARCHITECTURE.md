@@ -474,7 +474,7 @@ Countdown timer hook:
 <summary><strong>lib/api.ts</strong></summary>
 
 API helper:
-- `fetchJSON(path, options)` prefixes path with `NEXT_PUBLIC_API_BASE_URL`
+- `fetchJSON(path, options)` prefixes path with `NEXT_PUBLIC_API_URL`
 - Throws for non-OK responses with error message
 
 </details>

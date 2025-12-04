@@ -107,7 +107,7 @@ npm install socket.io-client
 ### Frontend `.env.local` (in `frontend/.env.local`)
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
 The frontend uses this to call the NestJS API.
