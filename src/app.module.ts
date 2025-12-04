@@ -8,6 +8,7 @@ import { ProductsModule } from './products/products.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { Product } from './products/product.entity';
 import { Reservation } from './reservations/reservation.entity';
+import { ReservationsGateway } from './realtime/reservations.gateway';
 
 @Module({
   imports: [
@@ -44,5 +45,6 @@ import { Reservation } from './reservations/reservation.entity';
     ProductsModule,
     ReservationsModule,
   ],
+  providers: [ReservationsGateway],
 })
 export class AppModule {}

@@ -170,6 +170,52 @@ Reservation {
 
 ---
 
+## 3.3 Realtime / WebSockets (Socket.IO)
+
+The project includes a realtime layer using Socket.IO (via NestJS WebSocketGateway) to push live stock and reservation updates to connected clients. This keeps product stock and reservation lists in sync across clients without polling.
+
+Key points:
+
+- Packages (example install):
+
+```bash
+# server
+npm install @nestjs/websockets @nestjs/platform-socket.io socket.io
+
+# client (frontend)
+npm install socket.io-client
+```
+
+- Backend: implement a `WebSocketGateway` (Socket.IO adapter) that emits events when important state changes occur:
+   - On reservation create/extend → emit `product:update` and `reservation:update` (or a combined `reservation:created` event)
+   - On reservation expire (background job) → emit `reservation:expired` and `product:update`
+   - On reservation cancel → emit `reservation:cancelled` and `product:update`
+   - On reservation complete → emit `reservation:completed` (optional: broadcast to analytics/dashboard)
+
+- Frontend: connect with `socket.io-client` and listen for events:
+   - `product:update` → update product list stock locally
+   - `reservation:update|created|expired|cancelled|completed` → refresh reservation panel or update specific reservation entry
+
+Example server emit payloads (JSON):
+
+```json
+// product:update
+{ "event": "product:update", "data": { "productId": "uuid", "availableStock": 3 } }
+
+// reservation:update
+{ "event": "reservation:update", "data": { "reservationId": "uuid", "userId": "user-123", "productId": "uuid", "quantity": 2, "status": "ACTIVE", "expiresAt": "2025-12-04T12:34:56.000Z" } }
+```
+
+Recommendations and notes:
+
+- Use broadcasting for global product updates (e.g., `server.emit('product:update', payload)`). For user-specific events, consider rooms named by `userId` and `socket.join(userId)` to avoid leaking data.
+- Always treat server state as authoritative. Clients should reconcile updates by fetching the latest resource when receiving an event if more detail is needed.
+- Emit events from the same code paths that change DB state (inside transactions or immediately after commit). If using delayed/worker jobs (Bull), the worker should emit events after successfully expiring a reservation and restoring stock.
+- Reconnection handling: on reconnect, client should re-authenticate (if used) and fetch `GET /products` and `GET /reservations/user/:userId` to fully resync state.
+- Security: attach a short-lived token (e.g., JWT) on connection (via `auth` payload in Socket.IO) and validate it in the NestJS gateway `handleConnection` to associate sockets with users.
+
+---
+
 ## 4. Reservation Lifecycle
 
 This is the core logic of the system.

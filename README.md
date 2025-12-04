@@ -14,6 +14,7 @@
   <a href="https://nextjs.org" target="_blank"><img src="https://img.shields.io/badge/Next.js-frontend-000000?logo=nextdotjs&logoColor=white" alt="Next.js" /></a>
   <a href="https://www.postgresql.org" target="_blank"><img src="https://img.shields.io/badge/PostgreSQL-DB-336791?logo=postgresql&logoColor=white" alt="PostgreSQL" /></a>
   <a href="https://redis.io" target="_blank"><img src="https://img.shields.io/badge/Redis-queue-DC382D?logo=redis&logoColor=white" alt="Redis" /></a>
+  <a href="#" target="_blank"><img src="https://img.shields.io/badge/Socket.IO-realtime-010101?logo=socket.io&logoColor=white" alt="Socket.IO" /></a>
   <a href="./LICENSE" target="_blank"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
 </p>
 
@@ -86,6 +87,22 @@ RESERVATION_TTL_MS=120000
 </details>
 
 Make sure PostgreSQL and Redis are running locally, or point these values to your services.
+
+### Realtime / Socket.IO
+
+If you enabled realtime updates, the backend uses Socket.IO to broadcast product/reservation changes.
+
+Install on the server:
+
+```bash
+npm install @nestjs/websockets @nestjs/platform-socket.io socket.io
+```
+
+Install on the client (frontend):
+
+```bash
+npm install socket.io-client
+```
 
 ### Frontend `.env.local` (in `frontend/.env.local`)
 
