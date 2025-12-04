@@ -38,9 +38,9 @@ This document explains how the system is structured, how reservations work end-t
 ### Main Components
 
 ```
-┌─────────────────────┐         ┌────────────────────┐
-│  Next.js Frontend   │◄──────►│  NestJS Backend    │
-│  (React, Tailwind)  │  REST  │  (HTTP API)        │
+┌─────────────────────┐         ┌───────────────────┐
+│  Next.js Frontend   │◄──────► │ NestJS Backend    │
+│  (React, Tailwind)  │  REST   │ (HTTP API)        │
 └─────────┬───────────┘         └──────────┬────────┘
           │                               │
           │                       ┌───────┴────────┐
